@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plastic Data Collection App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+        }
+        input, textarea, button {
+            width: 100%;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .output {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #e9ecef;
+        }
+        #previewImage {
+            display: none;
+            width: 100%;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Plastic Data Collection</h2>
+        <form method="POST" 
+              action="https://script.google.com/macros/s/AKfycbzjpVw0131M_c98soFyQsCAPuXn_xHR3cnQ6qgkn-49wMOnI1PMJhU5tUaE1izNykLZTQ/exec">
+
+            <label for="name">Name of Respondent:</label>
+            <input type="text" id="name" name="name" placeholder="Enter your name" required>
+
+            <label for="mobile">Mobile Number:</label>
+            <input type="tel" id="mobile" name="mobile" placeholder="Enter your mobile number" pattern="[0-9]{10}" required>
+
+            <label for="volume">Plastic Volume (in Kg):</label>
+            <input type="number" id="volume" name="volume" placeholder="Enter volume" required>
+
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" rows="4" placeholder="Describe the plastic type and condition" required></textarea>
+
+            <label for="latitude">Latitude:</label>
+            <input type="text" id="latitude" name="latitude" placeholder="Latitude" readonly required>
+
+            <label for="longitude">Longitude:</label>
+            <input type="text" id="longitude" name="longitude" placeholder="Longitude" readonly required>
+
+            <button type="button" id="getLocation">Get Current Location</button>
+            <div id="locationStatus"></div>
+
+            <label for="image">Capture Image:</label>
+            <input type="file" id="image" name="image" accept="image/*" capture="environment" required>
+            <img id="previewImage" alt="Preview Image">
+
+            <button type="submit">Submit Data</button>
+        </form>
+
+        <div class="output" id="output" style="display:none;">
+            <h3>Submitted Data:</h3>
+            <p><strong>Name:</strong> <span id="outputName"></span></p>
+            <p><strong>Mobile Number:</strong> <span id="outputMobile"></span></p>
+            <p><strong>Plastic Volume (Kg):</strong> <span id="outputVolume"></span></p>
+            <p><strong>Description:</strong> <span id="outputDescription"></span></p>
+            <p><strong>Location:</strong> Latitude: <span id="outputLatitude"></span>, Longitude: <span id="outputLongitude"></span></p>
+            <p><strong>Image:</strong> <span id="outputImageUrl"></span></p>
+            <img id="outputImage" src="" alt="Submitted Image" style="max-width:100%; margin-top:10px;">
+        </div>
+    </div>
+
+    <script>
+        const getLocationButton = document.getElementById('getLocation');
+        const locationStatus = document.getElementById('locationStatus');
+        const latitudeField = document.getElementById('latitude');
+        const longitudeField = document.getElementById('longitude');
+
+        // Get user location
+        getLocationButton.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                locationStatus.textContent = "Getting location...";
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const latitude = position.coords.latitude;
+                        const longitude = position.coords.longitude;
+
+                        // Populate the latitude and longitude fields
+                        latitudeField.value = latitude;
+                        longitudeField.value = longitude;
+
+                        locationStatus.textContent = "Location retrieved successfully.";
+                    },
+                    (error) => {
+                        locationStatus.textContent = "Unable to retrieve location.";
+                    }
+                );
+            } else {
+                locationStatus.textContent = "Geolocation is not supported by this browser.";
+            }
+        });
+
+        // Preview image before submission
+        const imageInput = document.getElementById('image');
+        const previewImage = document.getElementById('previewImage');
+
+        imageInput.addEventListener('change', () => {
+            const file = imageInput.files[0]; // Get the uploaded file
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    // Set the preview image source
+                    previewImage.src = event.target.result;
+                    previewImage.style.display = 'block'; // Show the image preview
+                };
+                reader.readAsDataURL(file); // Read the image file as a Data URL
+            } else {
+                previewImage.style.display = 'none'; // Hide the preview if no file is selected
+            }
+        });
+
+        // Handle form submission
+        document.querySelector('form').addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent the default form submission
+
+            const form = e.target;
+            const formData = new FormData(form);
+            const imageFile = imageInput.files[0];
+
+            if (imageFile) {
+                const reader = new FileReader();
+                reader.onload = async function (event) {
+                    const base64Image = event.target.result.split(',')[1]; // Extract Base64 string
+                    formData.set('image', base64Image); // Replace 'image' field with Base64 data
+
+                    // Convert FormData to URL-encoded string
+                    const data = new URLSearchParams();
+                    for (const [key, value] of formData.entries()) {
+                        data.append(key, value);
+                    }
+
+                    try {
+                        // Send data to Apps Script
+                        const response = await fetch(form.action, {
+                            method: 'POST',
+                            body: data,
+                        });
+
+                        const result = await response.json();
+                        if (result.result === 'success') {
+                            alert('Data submitted successfully!');
+                            // Display the submitted data in the output section
+                            document.getElementById('output').style.display = 'block';
+                            document.getElementById('outputName').textContent = formData.get('name');
+                            document.getElementById('outputMobile').textContent = formData.get('mobile');
+                            document.getElementById('outputVolume').textContent = formData.get('volume');
+                            document.getElementById('outputDescription').textContent = formData.get('description');
+                            document.getElementById('outputLatitude').textContent = formData.get('latitude');
+                            document.getElementById('outputLongitude').textContent = formData.get('longitude');
+                            document.getElementById('outputImageUrl').textContent = result.url; // Image URL
+                            document.getElementById('outputImage').src = result.url; // Display image
+
+                            console.log('Image URL:', result.url); // Log the image URL
+                        } else {
+                            alert(`Error: ${result.error}`);
+                        }
+                    } catch (error) {
+                        alert(`Failed to submit data: ${error.message}`);
+                    }
+                };
+                reader.readAsDataURL(imageFile); // Trigger the reader
+            } else {
+                alert('Please attach an image before submitting!');
+            }
+        });
+    </script>
+</body>
+</html>
